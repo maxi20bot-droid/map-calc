@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Market Cap Calculator</title>
+<style>
+  :root {
+    --fg: var(--foreground, #e9eaee);
+    --muted: var(--muted-foreground, #9095a3);
+    --acc: var(--accent, #7c5cff);
+    --bd: var(--border, rgba(255,255,255,.12));
+    --cardbg: var(--card, rgba(255,255,255,.04));
+    --good: #22c55e;
+    --bad: #ef4444;
+  }
+  /* Only applies when opened as a standalone page (not inside Hermes chat) */
+  html.standalone body { background:#0f1117; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; margin:0; padding:28px 16px; }
+  html.standalone .app { margin:0 auto; }
+
+  * { box-sizing:border-box; }
+  .app { color:var(--fg); max-width:640px; width:100%; display:flex; flex-direction:column; gap:14px; }
+  .title { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+  .title h1 { font-size:18px; margin:0; font-weight:650; }
+  .title span { font-size:12px; color:var(--muted); }
+
+  .card { background:var(--cardbg); border:1px solid var(--bd); border-radius:14px; padding:14px; }
+  .inputs { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; }
+  @media (max-width:560px){ .inputs { grid-template-columns:1fr; } }
+  label { display:flex; flex-direction:column; gap:6px; font-size:12px; color:var(--muted); font-weight:550; letter-spacing:.02em; text-transform:uppercase; }
+  .field { position:relative; }
+  .field input { width:100%; font:inherit; font-size:17px; font-weight:600; color:var(--fg); background:transparent; border:1px solid var(--bd); border-radius:10px; padding:10px 10px 10px 24px; outline:none; text-transform:none; }
+  .field input:focus { border-color:var(--acc); box-shadow:0 0 0 3px color-mix(in srgb, var(--acc) 25%, transparent); }
+  .field input.err { border-color:var(--bad); }
+  .field .pre { position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--muted); font-size:15px; pointer-events:none; }
+  .hint { font-size:11px; color:var(--muted); text-transform:none; letter-spacing:0; font-weight:400; min-height:14px; }
+
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; align-items:center; }
+  .chips small { color:var(--muted); font-size:12px; margin-right:4px; }
+  .chip { font:inherit; font-size:12px; font-weight:600; color:var(--fg); background:transparent; border:1px solid var(--bd); border-radius:999px; padding:5px 11px; cursor:pointer; }
+  .chip:hover { border-color:var(--acc); color:var(--acc); }
+
+  .hero { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  @media (max-width:560px){ .hero { grid-template-columns:1fr; } }
+  .stat .k { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; font-weight:550; }
+  .stat .v { font-size:30px; font-weight:750; margin-top:4px; letter-spacing:-.01em; word-break:break-all; }
+  .stat .s { font-size:13px; color:var(--muted); margin-top:2px; }
+  .mult .v { color:var(--acc); }
+  .pos { color:var(--good) !important; }
+  .neg { color:var(--bad) !important; }
+
+  .bar { height:8px; border-radius:99px; background:color-mix(in srgb, var(--fg) 10%, transparent); overflow:hidden; margin-top:12px; }
+  .bar > div { height:100%; background:var(--acc); border-radius:99px; transition:width .25s; }
+  .barlbl { display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-top:5px; }
+
+  table { width:100%; border-collapse:collapse; font-size:13.5px; }
+  th { text-align:left; color:var(--muted); font-weight:550; font-size:11px; text-transform:uppercase; letter-spacing:.04em; padding:0 6px 8px; }
+  td { padding:7px 6px; border-top:1px solid var(--bd); font-variant-numeric:tabular-nums; }
+  td:first-child { font-weight:700; color:var(--acc); }
+  tr.hl td { background:color-mix(in srgb, var(--acc) 12%, transparent); }
+  tr.clickable { cursor:pointer; }
+  tr.clickable:hover td { background:color-mix(in srgb, var(--fg) 6%, transparent); }
+  .num { text-align:right; }
+
+  .foot { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; font-size:11.5px; color:var(--muted); }
+  .btn { font:inherit; font-size:12px; font-weight:600; color:var(--fg); background:transparent; border:1px solid var(--bd); border-radius:8px; padding:6px 12px; cursor:pointer; }
+  .btn:hover { border-color:var(--acc); }
+  .msg { font-size:13px; color:var(--muted); }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="title">
+    <h1>📊 Market Cap Calculator</h1>
+    <span>shorthand ok: 500, 2.5k, 3m, 1b</span>
+  </div>
+
+  <div class="card">
+    <div class="inputs">
+      <label>Invested
+        <div class="field"><span class="pre">$</span><input id="inv" inputmode="decimal" value="500" autocomplete="off"></div>
+        <span class="hint" id="h-inv"></span>
+      </label>
+      <label>Current market cap
+        <div class="field"><span class="pre">$</span><input id="cur" inputmode="decimal" value="2m" autocomplete="off"></div>
+        <span class="hint" id="h-cur"></span>
+      </label>
+      <label>Target market cap
+        <div class="field"><span class="pre">$</span><input id="tgt" inputmode="decimal" value="100m" autocomplete="off"></div>
+        <span class="hint" id="h-tgt"></span>
+      </label>
+    </div>
+    <div class="chips">
+      <small>Quick target:</small>
+      <button class="chip" data-x="2">2x</button>
+      <button class="chip" data-x="5">5x</button>
+      <button class="chip" data-x="10">10x</button>
+      <button class="chip" data-x="25">25x</button>
+      <button class="chip" data-x="50">50x</button>
+      <button class="chip" data-x="100">100x</button>
+      <button class="chip" data-abs="1e9">$1B</button>
+      <button class="chip" data-abs="1e10">$10B</button>
+    </div>
+  </div>
+
+  <div id="out">
+    <div class="hero">
+      <div class="card stat mult"><div class="k">Multiplier</div><div class="v" id="r-mult">–</div><div class="s" id="r-pct">&nbsp;</div></div>
+      <div class="card stat"><div class="k">Estimated payout</div><div class="v" id="r-pay">–</div><div class="s" id="r-profit">&nbsp;</div></div>
+    </div>
+    <div class="card" style="margin-top:10px">
+      <div class="barlbl"><span>Current <b id="b-cur"></b></span><span>Target <b id="b-tgt"></b></span></div>
+      <div class="bar"><div id="bar" style="width:0%"></div></div>
+      <div class="barlbl"><span id="b-note"></span><span></span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <table>
+      <thead><tr><th>Mult</th><th class="num">Market cap</th><th class="num">Payout</th><th class="num">Profit</th></tr></thead>
+      <tbody id="ladder"></tbody>
+    </table>
+  </div>
+
+  <div class="foot">
+    <span>Assumes circulating supply stays the same (unlocks/inflation lower real returns). Not financial advice.</span>
+    <button class="btn" id="share">🔗 Copy link</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  // Standalone page vs. embedded in Hermes chat (which injects theme vars)
+  if (!getComputedStyle(document.documentElement).getPropertyValue('--foreground').trim())
+    document.documentElement.classList.add('standalone');
+  else
+    document.getElementById('share').style.display = 'none';  // link is meaningless inside chat
+
+  const $ = id => document.getElementById(id);
+  const SUF = { '':1, k:1e3, m:1e6, mm:1e6, b:1e9, bn:1e9, t:1e12 };
+  const LADDER = [2, 3, 5, 10, 25, 50, 100, 1000];
+
+  function parse(str) {
+    const s = String(str).trim().toLowerCase().replace(/[$,_\s]/g, '');
+    const m = s.match(/^([0-9]*\.?[0-9]+)(k|mm|m|bn|b|t)?$/);
+    if (!m) return NaN;
+    const v = parseFloat(m[1]) * SUF[m[2] || ''];
+    return v > 0 ? v : NaN;
+  }
+  function money(x) {
+    const n = x < 0, a = Math.abs(x); let s;
+    if (a >= 1e12) s = '$' + (a/1e12).toLocaleString(undefined,{maximumFractionDigits:2}) + 'T';
+    else if (a >= 1e9) s = '$' + (a/1e9).toLocaleString(undefined,{maximumFractionDigits:2}) + 'B';
+    else if (a >= 1e6) s = '$' + (a/1e6).toLocaleString(undefined,{maximumFractionDigits:2}) + 'M';
+    else if (a >= 1e3) s = '$' + a.toLocaleString(undefined,{maximumFractionDigits:0});
+    else s = '$' + a.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+    return (n ? '-' : '') + s;
+  }
+  function mult(m) {
+    const d = m >= 100 ? 0 : m >= 10 ? 1 : 2;
+    return m.toLocaleString(undefined,{minimumFractionDigits:d, maximumFractionDigits:d}) + 'x';
+  }
+  function pct(p) { return (p >= 0 ? '+' : '') + p.toLocaleString(undefined,{maximumFractionDigits:0}) + '%'; }
+
+  function readField(id) {
+    const el = $(id), v = parse(el.value), raw = el.value.trim();
+    el.classList.toggle('err', raw !== '' && isNaN(v));
+    $('h-' + id).textContent = raw === '' ? '' : isNaN(v) ? 'Not a valid number' : '= ' + money(v);
+    return v;
+  }
+
+  function render() {
+    const inv = readField('inv'), cur = readField('cur'), tgt = readField('tgt');
+    const okBase = !isNaN(inv) && !isNaN(cur);
+
+    if (okBase && !isNaN(tgt)) {
+      const m = tgt / cur, pay = inv * m, prof = pay - inv, up = m >= 1;
+      $('r-mult').textContent = mult(m);
+      $('r-pct').textContent = pct((m - 1) * 100) + (up ? ' gain' : ' loss');
+      $('r-pay').textContent = money(pay);
+      $('r-pay').className = 'v ' + (up ? 'pos' : 'neg');
+      $('r-profit').textContent = (prof >= 0 ? '+' + money(prof) + ' profit' : money(prof) + ' loss');
+      $('b-cur').textContent = money(cur);
+      $('b-tgt').textContent = money(tgt);
+      $('bar').style.width = up ? Math.max(2, Math.min(100, cur / tgt * 100)) + '%' : '100%';
+      $('bar').style.background = up ? 'var(--acc)' : 'var(--bad)';
+      $('b-note').textContent = up ? `Needs to grow ${mult(m)} — currently ${(cur/tgt*100).toFixed(cur/tgt < .01 ? 2 : 1)}% of the way` : 'Target is below current market cap';
+    } else {
+      ['r-mult','r-pay'].forEach(i => $(i).textContent = '–');
+      ['r-pct','r-profit','b-note','b-cur','b-tgt'].forEach(i => $(i).textContent = '');
+      $('bar').style.width = '0%';
+    }
+
+    const tb = $('ladder');
+    if (!okBase) { tb.innerHTML = '<tr><td colspan="4" class="msg">Enter an investment and current market cap to see the ladder.</td></tr>'; return; }
+    const curM = !isNaN(tgt) ? tgt / cur : null;
+    tb.innerHTML = LADDER.map(x => {
+      const hl = curM && Math.abs(curM - x) / x < 0.005 ? ' hl' : '';
+      return `<tr class="clickable${hl}" data-x="${x}"><td>${x}x</td><td class="num">${money(cur*x)}</td><td class="num">${money(inv*x)}</td><td class="num pos">+${money(inv*x - inv)}</td></tr>`;
+    }).join('');
+
+    // keep the URL shareable
+    const q = new URLSearchParams({ inv: $('inv').value, cur: $('cur').value, tgt: $('tgt').value });
+    try { history.replaceState(null, '', '#' + q.toString()); } catch (e) {}
+  }
+
+  function short(v) {
+    if (v >= 1e12) return +(v/1e12).toPrecision(4) + 't';
+    if (v >= 1e9) return +(v/1e9).toPrecision(4) + 'b';
+    if (v >= 1e6) return +(v/1e6).toPrecision(4) + 'm';
+    if (v >= 1e3) return +(v/1e3).toPrecision(4) + 'k';
+    return String(+v.toPrecision(6));
+  }
+  function setTarget(v) { $('tgt').value = short(v); render(); }
+
+  document.querySelectorAll('.chip').forEach(b => b.addEventListener('click', () => {
+    const cur = parse($('cur').value);
+    if (b.dataset.abs) return setTarget(+b.dataset.abs);
+    if (!isNaN(cur)) setTarget(cur * +b.dataset.x);
+  }));
+  $('ladder').addEventListener('click', e => {
+    const tr = e.target.closest('tr[data-x]'); const cur = parse($('cur').value);
+    if (tr && !isNaN(cur)) setTarget(cur * +tr.dataset.x);
+  });
+  ['inv','cur','tgt'].forEach(id => $(id).addEventListener('input', render));
+  $('share').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(location.href); $('share').textContent = '✓ Copied'; }
+    catch (e) { $('share').textContent = 'Copy failed'; }
+    setTimeout(() => $('share').textContent = '🔗 Copy link', 1500);
+  });
+
+  // load from shared link
+  try {
+    const q = new URLSearchParams(location.hash.slice(1));
+    ['inv','cur','tgt'].forEach(k => { if (q.get(k)) $(k).value = q.get(k); });
+  } catch (e) {}
+  render();
+})();
+</script>
+</body>
+</html>
